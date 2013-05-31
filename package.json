@@ -1,0 +1,14 @@
+{
+  "author": "Arnauld (http://twitter.com/@loyer)",
+  "name": "tgz-viewer",
+  "description": "tar for node",
+  "version": "0.0.1",
+  "main": "tar.js",
+  "dependencies": {
+    "node-static": "0.6.x",
+    "tar": "0.1.x",
+    "mime": "1.2.x",
+    "sockjs": "0.3.7"
+  },
+  "license": "BSD"
+}
