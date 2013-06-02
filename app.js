@@ -3,6 +3,7 @@ var sockjs = require('sockjs'),
     http = require('http'),
     url = require('url'),
     fs = require('fs'),
+    fsExt = require('./lib/fs-ext'),
     mime = require('mime'),
     tgz = require('./lib/tgz'),
     port = 5003,
@@ -15,17 +16,60 @@ sockjs.on('connection', function(conn) {
     });
 });
 
+function writeJson(res, content) {
+  res.writeHead(200, {'Content-Type': 'application/json'});
+  res.end(JSON.stringify(content, null, "  "), "utf-8");
+}
+
 var fileServer = new nstatic.Server('./assets');
 
 var app = http.createServer(function(req, res) {
     console.info(">> " + req.method + " " + req.url);
 
-    var parsed = url.parse(req.url, true)
+    var parsed = url.parse(req.url, true);
 
+    if(parsed.pathname === "/root-content") {
+      fsExt.content(rootDir).then(function(content) {
+        writeJson(res, content);
+      });
+    }
+    else if(parsed.pathname === "/content") {
+      var desc = parsed.query.descriptor,
+          json = new Buffer(desc, 'base64').toString('ascii'),
+          descriptor = JSON.parse(json);
+
+      fsExt.content(descriptor).then(function(descriptorOrFn) {
+          if(typeof descriptorOrFn === 'function') {
+            descriptorOrFn(
+              // start
+              function(err) {
+                if(descriptor.is_entry) {
+                  console.log("Extracting Content-Type based on '%s'", descriptor.entry_path);
+                  res.writeHead(200, {'Content-Type': mime.lookup(descriptor.entry_path)});
+                }
+                else {
+                  res.writeHead(200, {'Content-Type': mime.lookup(descriptor.path)});
+                }
+                  
+              }, 
+              // data
+              function(err, data) {
+                res.write(data);
+              }, 
+              // end
+              function(err) {
+                res.end();
+              });
+          }
+          else {
+            writeJson(res, descriptorOrFn);  
+          }
+      });
+    }
     //
     // list archives
     //
-    if(parsed.pathname === "/list-archives") {
+    else if(parsed.pathname === "/list-archives") {
       fs.readdir(rootDir, function(err, files) {
         res.writeHead(200, {
           'Content-Type': 'application/json'});
@@ -37,7 +81,7 @@ var app = http.createServer(function(req, res) {
     //
     else if(parsed.pathname === "/archive-entries") {
       var archive = parsed.query.archive;
-      tgz.readEntries(rootDir + "/" + archive, function(err, entries) {
+      tgz.listEntries(rootDir + "/" + archive, function(err, entries) {
         res.writeHead(200, {
           'Content-Type': 'application/json'});
         res.end(JSON.stringify(entries, null, "  "), "utf-8");
@@ -50,11 +94,16 @@ var app = http.createServer(function(req, res) {
       var archive = parsed.query.archive;
       var entry = parsed.query.entry;
       tgz.readEntry(rootDir + "/" + archive, entry, 
+        // start
         function(err) {
           res.writeHead(200, {'Content-Type': mime.lookup(entry)});
-        }, function(data) {
+        }, 
+        // data
+        function(err, data) {
           res.write(data);
-        }, function() {
+        }, 
+        // end
+        function(err) {
           res.end();
         });
     }

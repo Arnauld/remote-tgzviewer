@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
 <head>
+  <meta charset="utf-8">
   <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen">
   <style type="text/css">
       body {
@@ -26,17 +27,10 @@
     <div class="navbar navbar-inverse navbar-fixed-top">
       <div class="navbar-inner">
         <div class="container-fluid">
-          <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
           <a class="brand" href="#">tgz-Viewer</a>
           <div class="nav-collapse collapse">
-            <ul class="nav">
-              <li class="active"><a href="#" id="home">Home</a></li>
-              <li><a href="#" id="archive"></a></li>
-              <li><a href="#" id="file"></a></li>
+            <ul class="nav" id="breadcrumbs">
+              <li class="active"><a href="#" id="home">/</a></li>
             </ul>
           </div><!--/.nav-collapse -->
         </div>
@@ -46,6 +40,10 @@
     <div class="container-fluid">
       <div class="row-fluid">
         <div class="span12" id="list-container">
+          <form class="form-inline">
+              <input type="text" placeholder="Type something…">
+              <button type="submit" class="btn btn-inverse">Filter</button>
+          </form>
           <div class="well sidebar-nav">
             <ul id="list" class="nav nav-list"></ul>
           </div>
@@ -77,16 +75,6 @@
           .attr('height', document.height - 160 - 5); // padding-top 100 + empty list 60 + approx 5
       }
 
-      function loadArchiveContent() {
-        var archive = $("#archive").text();
-        var entry = $("#file").text();
-
-        $('#list').empty();
-        $('#raw')
-          .attr('src', document.location.origin + "/entry-content?archive=" + archive + "&entry=" + entry);
-          maximizeFrame ();
-      }
-
       $(window).resize(function() {
         // iframe in use?
         var src = $('#raw').attr('src');
@@ -95,65 +83,121 @@
         }
       });
 
-      function entryClicked() {
-        var text = $(this).text();
-        $("#file").text(text);
-        loadArchiveContent();
-      }
+      var listEntries = [],
+          breadcrumbs = [];
 
-      function listArchiveEntries() {
-        var list = $('#list'),
-            text = $("#archive").text();
-        $.getJSON("/archive-entries?archive=" + text, function(res) {
 
-          discardFrameContent();
-          $("#file").text("");
-          list.empty();
-          
-          console.log("Received: ", res);
-          var n = res.length, i;
-          for(i=0; i<n; i++) {
-            console.log("appending ", res[i]);
-            var elemA  = $("<a href='#'>" + res[i] + "</a>");
-            elemA.click(entryClicked);
-            var elemLi = $("<li class='entry'></li>");
-            elemLi.append(elemA);
-            list.append(elemLi);
+      function descriptorSelected(descriptor) {              
+          if((descriptor.is_file && !descriptor.is_archive) || descriptor.is_entry) {
+              $('#list').empty();
+              $('#raw')
+                  .attr('src', document.location.origin + "/content?descriptor=" + descriptor.asBase64);
+              maximizeFrame ();
           }
-        });
+          else {
+              var list = $('#list');
+              $.getJSON("/content", {descriptor:descriptor.asBase64}, function(res) {
+
+                  discardFrameContent();
+                  $("#archive").text("");
+                  $("#file").text("");
+                  list.empty()
+                  listEntries = res;
+                
+                  console.log("Received: ", res);
+                  var n = res.length, i, label;
+                  for(i=0; i<n; i++) {
+                      console.log("appending ", res[i]);
+                      label = res[i].path;
+                      if(res[i].is_entry) {
+                        label = res[i].entry_path;
+                      }
+
+                      var elemA  = $("<a href='#'>" + label + "</a>").attr('listIndex', i);
+                      elemA.click(listEntryClicked);
+                      var elemLi = $("<li class='archive'></li>");
+                      elemLi.append(elemA);
+                      list.append(elemLi);
+                  }
+              });
+          }
       }
 
-      function archiveClicked() {
-        var text = $(this).text();
-        $("#archive").text(text);
-        $("#file").text("");
-        listArchiveEntries();
+      function breadcrumbClicked() {
+          var $entry = $(this),
+              listIndex = $entry.attr('listIndex'),
+              descriptor = breadcrumbs[listIndex];
+
+          breadcrumbs = breadcrumbs.slice(0, listIndex + 1);
+          descriptorSelected(descriptor);
+          renderBreadcrumbs();
       }
 
-      function listArchives() {
-        var list = $('#list');
-        $.getJSON("/list-archives", function(res) {
+      function renderBreadcrumbs() {
+        var $breadcrumbs = $("#breadcrumbs"),
+            i,
+            n = breadcrumbs.length;
 
-          discardFrameContent();
-          $("#archive").text("");
-          $("#file").text("");
+        // discard any existing bread=
+        $breadcrumbs.find(".descriptor").remove();
+
+        //
+        for(i=0; i<n; i++) {
+          var descriptor = breadcrumbs[i],
+              label = (descriptor.is_entry ? descriptor.entry_path : descriptor.path);
+
+          if(i < (n-1)) {
+            label = label + "&nbsp;/";
+          }
+
+          var $a  = $('<a href="#" class="descriptor">' + label + '</a>'),
+              $li = $('<li></li>');
+
+          if(i < (n-1)) {
+            $a.click(breadcrumbClicked);
+            $a.attr('listIndex', i);
+          }
+          $li.append($a);
+          $breadcrumbs.append($li);
+        }
+
+        $breadcrumbs.last().addClass("active");
+      }
+
+      function listEntryClicked() {
+          var $entry = $(this),
+              descriptor = listEntries[$entry.attr('listIndex')];
+          descriptorSelected(descriptor);
+          breadcrumbs.push(descriptor);
+          renderBreadcrumbs();
+      }
+
+      function rootContent() {
+        $.getJSON("/root-content", function(res) {
+
+          var list = $('#list');
           list.empty()
+          discardFrameContent();
+          listEntries = res;
+
+          breadcrumbs = [];
+          renderBreadcrumbs();
           
           console.log("Received: ", res);
           var n = res.length, i;
           for(i=0; i<n; i++) {
             console.log("appending ", res[i]);
-            var elemA  = $("<a href='#'>" + res[i] + "</a>");
-            elemA.click(archiveClicked);
+            var elemA  = $("<a href='#'>" + res[i].path + "</a>").attr('listIndex', i);
+            elemA.click(listEntryClicked);
             var elemLi = $("<li class='archive'></li>");
             elemLi.append(elemA);
             list.append(elemLi);
           }
         });
       }
-      $("#home").click(listArchives);
-      $("#archive").click(listArchiveEntries);
+            
+      rootContent();
+      $("#home").click(rootContent);
 
-      listArchives();
     </script>
 </body></html>
