@@ -58,7 +58,6 @@
 
 
     <script src="js/jquery-1.7.7.min.js"></script>
-    <script src="js/sockjs-0.3.min.js"></script>
     <script src="bootstrap/js/bootstrap.min.js"></script>
 
     <script>
@@ -148,7 +147,7 @@
               listIndex = $entry.attr('listIndex'),
               descriptor = breadcrumbs[listIndex];
 
-          breadcrumbs = breadcrumbs.slice(0, listIndex + 1);
+          breadcrumbs = breadcrumbs.slice(0, parseInt(listIndex) + 1);
           descriptorSelected(descriptor);
           renderBreadcrumbs();
       }
