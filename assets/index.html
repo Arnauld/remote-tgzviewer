@@ -41,8 +41,8 @@
       <div class="row-fluid">
         <div class="span12" id="list-container">
           <form class="form-inline">
-              <input type="text" placeholder="Type something…">
-              <button type="submit" class="btn btn-inverse">Filter</button>
+              <input type="text" placeholder="Type something…" id="filter-text">
+              <button type="submit" class="btn btn-inverse" id="filter-btn">Filter</button>
           </form>
           <div class="well sidebar-nav">
             <ul id="list" class="nav nav-list"></ul>
@@ -69,10 +69,12 @@
       }
 
       function maximizeFrame () {
-        var width = $('#raw-container').width();
+        var width = $('#raw-container').width(),
+            height = $(window).height();
+
         $('#raw')
           .attr('width', width)
-          .attr('height', document.height - 160 - 5); // padding-top 100 + empty list 60 + approx 5
+          .attr('height', height - 105); // padding-top 100 + approx 5
       }
 
       $(window).resize(function() {
@@ -86,39 +88,57 @@
       var listEntries = [],
           breadcrumbs = [];
 
+      function labelOf(descriptor) {
+        if(descriptor.is_entry)
+          return descriptor.entry_path;
+        else
+          return descriptor.path;
+      }
+
+      function hideEntries() {
+        listEntries = [];
+        $('#list').empty();
+        $("#list-container").hide();
+      }
+
+      function renderEntries() {
+        $("#list-container").show();
+        var list = $('#list'),
+            pattern0 = $('#filter-text').val(),
+            pattern1 = pattern0.split("*").join(".*"),
+            pattern2 = (pattern1.length > 0) ? pattern1 : ".*",
+            pattern3 = "^" + pattern2 + "$";
+
+        list.empty();      
+        var n = listEntries.length, i, label, descriptor;
+        for(i=0; i<n; i++) {
+          descriptor = listEntries[i];
+          label = labelOf(descriptor);
+
+          if(new RegExp(pattern3).test(label)) {
+            var elemA  = $("<a href='#'>" + label + "</a>").attr('listIndex', i);
+            elemA.click(listEntryClicked);
+            var elemLi = $("<li class='archive'></li>");
+            elemLi.append(elemA);
+            list.append(elemLi);
+          }
+        }
+      }
+
 
       function descriptorSelected(descriptor) {              
           if((descriptor.is_file && !descriptor.is_archive) || descriptor.is_entry) {
-              $('#list').empty();
+              hideEntries();
               $('#raw')
                   .attr('src', document.location.origin + "/content?descriptor=" + descriptor.asBase64);
               maximizeFrame ();
           }
           else {
-              var list = $('#list');
               $.getJSON("/content", {descriptor:descriptor.asBase64}, function(res) {
 
-                  discardFrameContent();
-                  $("#archive").text("");
-                  $("#file").text("");
-                  list.empty()
                   listEntries = res;
-                
-                  console.log("Received: ", res);
-                  var n = res.length, i, label;
-                  for(i=0; i<n; i++) {
-                      console.log("appending ", res[i]);
-                      label = res[i].path;
-                      if(res[i].is_entry) {
-                        label = res[i].entry_path;
-                      }
-
-                      var elemA  = $("<a href='#'>" + label + "</a>").attr('listIndex', i);
-                      elemA.click(listEntryClicked);
-                      var elemLi = $("<li class='archive'></li>");
-                      elemLi.append(elemA);
-                      list.append(elemLi);
-                  }
+                  discardFrameContent();
+                  renderEntries();
               });
           }
       }
@@ -167,37 +187,25 @@
       function listEntryClicked() {
           var $entry = $(this),
               descriptor = listEntries[$entry.attr('listIndex')];
-          descriptorSelected(descriptor);
           breadcrumbs.push(descriptor);
           renderBreadcrumbs();
+          descriptorSelected(descriptor);
       }
 
       function rootContent() {
         $.getJSON("/root-content", function(res) {
-
-          var list = $('#list');
-          list.empty()
-          discardFrameContent();
           listEntries = res;
-
           breadcrumbs = [];
+
+          discardFrameContent();
           renderBreadcrumbs();
-          
-          console.log("Received: ", res);
-          var n = res.length, i;
-          for(i=0; i<n; i++) {
-            console.log("appending ", res[i]);
-            var elemA  = $("<a href='#'>" + res[i].path + "</a>").attr('listIndex', i);
-            elemA.click(listEntryClicked);
-            var elemLi = $("<li class='archive'></li>");
-            elemLi.append(elemA);
-            list.append(elemLi);
-          }
+          renderEntries();
         });
       }
             
       rootContent();
       $("#home").click(rootContent);
+      $("#filter-btn").click(renderEntries);
 
     </script>
 </body></html>
