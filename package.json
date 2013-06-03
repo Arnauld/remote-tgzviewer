@@ -1,10 +1,11 @@
 {
-  "author": "Arnauld (http://twitter.com/@loyer)",
+  "author": "Arnauld (http://twitter.com/aloyer)",
   "name": "tgz-viewer",
   "description": "tar for node",
   "version": "0.0.1",
   "main": "tar.js",
   "dependencies": {
+    "commander": ">= 1.0.5",
     "node-static": "0.6.x",
     "tar": "0.1.x",
     "mime": "1.2.x",
