@@ -1,4 +1,4 @@
-var sockjs = require('sockjs'),
+var args = require('commander'),
     nstatic = require('node-static'),
     http = require('http'),
     url = require('url'),
@@ -6,27 +6,52 @@ var sockjs = require('sockjs'),
     fsExt = require('./lib/fs-ext'),
     mime = require('mime'),
     tgz = require('./lib/tgz'),
-    port = 5003,
-    rootDir = "/Users/arnauld/Projects/tgz-viewer/data";
+    startsWith = require('./lib/util').startsWith,
+    endsWith = require('./lib/util').endsWith,
+    port = 5003;
+
+args.version('0.0.1') //
+    .option('-d, --directory [path]', 'Directory path to mount') //
+    .option('-p, --port [integer]', 'Http port of the server [5003]', 5003) //
+    .parse(process.argv);
+
+if(!args.directory) {
+    console.error("No directory path defined (see --help for more information)");
+    process.exit(-1);
+}
+
+var rootDir = args.directory;
+
+console.log("Directory mounted %s", rootDir);
 
 function writeJson(res, content) {
   res.writeHead(200, {'Content-Type': 'application/json'});
   res.end(JSON.stringify(content, null, "  "), "utf-8");
 }
 
+function entry_or_file_path(descriptor) {
+  if(descriptor.is_entry) {
+    return descriptor.entry_path;
+  }
+  else {
+    return descriptor.path;
+  }
+}
+
 var fileServer = new nstatic.Server('./assets');
 
 var app = http.createServer(function(req, res) {
-    // console.info(">> " + req.method + " " + req.url);
-
     var parsed = url.parse(req.url, true);
+
+    console.info(">> %s %s", req.method, req.url);
 
     if(parsed.pathname === "/root-content") {
       fsExt.content(rootDir).then(function(content) {
         writeJson(res, content);
       });
     }
-    else if(parsed.pathname === "/content") {
+    else if(startsWith(parsed.pathname,"/content")) {
+
       var desc = parsed.query.descriptor,
           json = new Buffer(desc, 'base64').toString('ascii'),
           descriptor = JSON.parse(json);
@@ -36,13 +61,12 @@ var app = http.createServer(function(req, res) {
             descriptorOrFn(
               // start
               function(err) {
-                if(descriptor.is_entry) {
-                  console.log("Extracting Content-Type based on '%s'", descriptor.entry_path);
-                  res.writeHead(200, {'Content-Type': mime.lookup(descriptor.entry_path)});
-                }
-                else {
-                  res.writeHead(200, {'Content-Type': mime.lookup(descriptor.path)});
-                }
+                var path = entry_or_file_path(descriptor),
+                    mimeType = (endsWith(path, ".xml")? "text/xml" : mime.lookup(path)),
+                    display_path = path.replace(new RegExp("\\/", 'g'), "_");
+
+                res.writeHead(200, {'Content-Type': mimeType, 
+                                    'Content-Disposition': 'inline; filename="' + display_path + '"'});
                   
               }, 
               // data
