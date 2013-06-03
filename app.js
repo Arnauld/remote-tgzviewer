@@ -64,10 +64,12 @@ var app = http.createServer(function(req, res) {
                 var path = entry_or_file_path(descriptor),
                     mimeType = (endsWith(path, ".xml")? "text/xml" : mime.lookup(path)),
                     display_path = path.replace(new RegExp("\\/", 'g'), "_");
+                if(parsed.query.download) {
+                  mimeType = "application/force-download";
+                }
 
                 res.writeHead(200, {'Content-Type': mimeType, 
-                                    'Content-Disposition': 'inline; filename="' + display_path + '"'});
-                  
+                                    'Content-Disposition': 'inline; filename="' + display_path + '"'});                  
               }, 
               // data
               function(err, data) {
