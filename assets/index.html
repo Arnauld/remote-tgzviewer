@@ -11,6 +11,9 @@
       .sidebar-nav {
         padding: 9px 0;
       }
+      #loader {
+        display: hidden
+      }
 
       @media (max-width: 980px) {
         /* Enable use of floated navbar text */
@@ -38,6 +41,9 @@
     </div>
 
     <div class="container-fluid">
+      <div class="row-fluid" id="loader">
+        <img src="img/loader.gif">
+      </div>
       <div class="row-fluid">
         <div class="span12" id="list-container">
           <form class="form-inline">
@@ -50,9 +56,9 @@
         </div>
       </div>
       <div class="row-fluid">
-        <div class="span12" id="raw-container">
-          <iframe id="raw" src="about:blank" width="800" height="10" frameborder="0" scrolling="yes"></iframe>
-        </div>
+        <pre class="span12" id="raw-container">
+          <!--iframe id="raw" src="about:blank" width="800" height="10" frameborder="0" scrolling="yes"></iframe-->
+        </pre>
       </div>
     </div>
 
@@ -84,6 +90,14 @@
         }
       });
 
+      function hideLoader() {
+        $("#loader").hide();
+      }
+
+      function showLoader() {
+        $("#loader").show();
+      }
+
       var listEntries = [],
           breadcrumbs = [];
 
@@ -98,6 +112,10 @@
         listEntries = [];
         $('#list').empty();
         $("#list-container").hide();
+      }
+
+      function hideRawContent() {
+        $("#raw-container").hide();
       }
 
       function renderEntries() {
@@ -124,19 +142,41 @@
         }
       }
 
+      function descriptorSelected(descriptor) {
+          hideEntries();
+          hideRawContent();
+          showLoader();
 
-      function descriptorSelected(descriptor) {              
           if((descriptor.is_file && !descriptor.is_archive) || descriptor.is_entry) {
-              hideEntries();
-              $('#raw')
-                  .attr('src', document.location.origin + "/content?descriptor=" + descriptor.asBase64);
-              maximizeFrame ();
+              
+              
+              var file_name = labelOf(descriptor).replace(new RegExp("\\/", 'g'), "_");
+                  request = $.ajax({
+                      type: "GET",
+                      url: "content/" + file_name,
+                      cache: false,
+                      dataType: "text",
+                      data: {descriptor: descriptor.asBase64}
+                    });
+
+              request.done(function( html ) {
+                hideLoader();
+                $("#raw-container").text(html).show();
+              });
+              request.fail(function(jqXHR, textStatus) {
+                alert( "Request failed: " + textStatus );
+              });
+
+              //var file_name = labelOf(descriptor).replace(new RegExp("\\/", 'g'), "_");
+              //$('#raw')
+              //    .attr('src', document.location.origin + "/content/" + file_name + "?descriptor=" + descriptor.asBase64);
+              //maximizeFrame ();
           }
           else {
               $.getJSON("/content", {descriptor:descriptor.asBase64}, function(res) {
 
                   listEntries = res;
-                  discardFrameContent();
+                  hideLoader();
                   renderEntries();
               });
           }
@@ -192,11 +232,15 @@
       }
 
       function rootContent() {
+        hideEntries();
+        hideRawContent();
+        showLoader();
+
         $.getJSON("/root-content", function(res) {
           listEntries = res;
           breadcrumbs = [];
 
-          discardFrameContent();
+          hideLoader();
           renderBreadcrumbs();
           renderEntries();
         });
